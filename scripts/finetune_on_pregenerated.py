@@ -5,9 +5,12 @@ import torch
 import logging
 import json
 import random
+import pickle
+import nvidia_smi
 import numpy as np
 from collections import namedtuple
 from tempfile import TemporaryDirectory
+from pathlib import Path
 
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from tqdm import tqdm
@@ -23,6 +26,9 @@ InputFeatures = namedtuple(
 
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
+
+nvidia_smi.nvmlInit()
+handle = nvidia_smi.nvmlDeviceGetHandleByIndex(0)
 
 
 def get_args():
@@ -70,7 +76,7 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
     segment_array = np.zeros(max_seq_length, dtype=np.bool)
     segment_array[:len(segment_ids)] = segment_ids
 
-    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=-1)
+    lm_label_array = np.full(max_seq_length, dtype=np.int, fill_value=0)
     lm_label_array[masked_lm_positions] = masked_label_ids
 
     features = InputFeatures(input_ids=input_array,
@@ -155,11 +161,14 @@ def main():
     assert args.pregenerated_data.is_dir(), \
         "--pregenerated_data should point to the folder of files made by pregenerate_training_data.py!"
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # not parallizing across GPUs because of deadlocks
     n_gpu = 1 if torch.cuda.device_count() > 0 else 0
 
     logging.info(f'device: {device} n_gpu: {n_gpu} seed: {args.seed}')
+    res = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+    logging.info(
+        f'mem: {res.used / (1024**2)} (GiB) ({100 * (res.used / res.total):.3f}%)')
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -225,20 +234,33 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     for epoch in range(args.epochs):
-        epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
-                                            num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
-
+        tmp_fp = f'/media/data_1/darius/data/epoch_{epoch}_dataset_255.pkl'
+        if Path(tmp_fp).is_file():
+            logging.info(f'Loading dataset from {tmp_fp}...')
+            with open(tmp_fp, 'rb') as f:
+                epoch_dataset = pickle.load(f)
+        else:
+            epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
+                                                num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+            with open(tmp_fp, 'wb') as f:
+                pickle.dump(epoch_dataset, f)
         train_sampler = RandomSampler(epoch_dataset)
         train_dataloader = DataLoader(
             epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
         with tqdm(total=len(train_dataloader), desc=f"Epoch {epoch}") as pbar:
-            for _, batch in enumerate(train_dataloader):
-                batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next = batch
-                outputs = model(input_ids, segment_ids,
-                                input_mask, lm_label_ids, is_next)
+            for _, (input_ids, input_mask, segment_ids, lm_label_ids, is_next) in enumerate(train_dataloader):
+                input_ids = input_ids.to(device)
+                input_mask = input_mask.to(device)
+                segment_ids = segment_ids.to(device)
+                lm_label_ids = lm_label_ids.to(device)
+                is_next = is_next.to(device)
+                # breakpoint()
+                outputs = model(input_ids, token_type_ids=segment_ids, attention_mask=input_mask,
+                                labels=lm_label_ids, next_sentence_label=is_next)
+                # outputs = model(input_ids, segment_ids,
+                #                 input_mask, lm_label_ids, is_next)
                 loss = outputs.loss
                 loss.backward()
                 tr_loss += loss.item()
@@ -248,7 +270,7 @@ def main():
                 mean_loss = tr_loss / nb_tr_steps
                 pbar.set_postfix_str(f"Loss: {mean_loss:.5f}")
                 optimizer.step()
-                optimizer.zero_grad()
+                # optimizer.zero_grad()
                 scheduler.step()
                 global_step += 1
 

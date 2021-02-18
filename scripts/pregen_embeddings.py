@@ -28,8 +28,7 @@ tokenizer = BertTokenizer.from_pretrained(args.model_path)
 config = BertConfig.from_pretrained(args.model_path, output_hidden_states=True)
 model = BertModel.from_pretrained(args.model_path, config=config)
 
-# torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = "cpu"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
 print(f'Using {device} with {n_gpu} GPUs')
 
@@ -67,7 +66,6 @@ def get_embs(generator):
         row['num_seqs'], EMB_SIZE), dtype=np.float32) for idx, row in df.iterrows()}
     with torch.no_grad():
         for input_ids, input_mask, segment_ids, _, _, guid, _ in tqdm(generator):
-            breakpoint()
             input_ids = input_ids.to(device)
             segment_ids = segment_ids.to(device)
             input_mask = input_mask.to(device)

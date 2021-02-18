@@ -13,8 +13,9 @@ python finetune_on_pregenerated.py \
 	--output_dir "$OUTPUT_DIR/models/pretrained_baseline_clinical_BERT_1_epoch_128/" \
 	--bert_model "$SCIBERT_DIR" \
 	--do_lower_case \
+	--reduce_memory \
 	--epochs 1 \
-	--train_batch_size 32\
+	--train_batch_size 8 \
 	--seed 123
 
 # python finetune_on_pregenerated.py \

@@ -1,21 +1,13 @@
-#!/bin/sh
-#SBATCH --partition t4 
-#SBATCH --gres gpu:2
-#SBATCH -c 8
-#SBATCH --output pregen_embs_%A.log
-#SBATCH --mem 85gb
+#!/bin/sh -e
 
-# set -e
-# source activate hurtfulwords
-
-BASE_DIR="/home/darius/HurtfulWords"
+BASE_DIR="/home/darius/ClinicalUserEmbeddings"
 OUTPUT_DIR="/media/data_1/darius"
 DATA_DIR="$OUTPUT_DIR/data"
 cd "$BASE_DIR/scripts"
 mkdir -p "$DATA_DIR/pregen_embs/"
 emb_method='cat4'
 model="baseline_clinical_BERT_1_epoch_512"
-target="inhosp_mort"
+target="inhosp_mort_100"
 experiment="gender"
 echo $model
 
