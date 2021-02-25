@@ -29,15 +29,17 @@ class DocumentDatabase:
         self.documents = []
         self.temp_dir = None
         self.doc_lengths = []
+        self.subject_ids = []
         self.doc_cumsum = None
         self.cumsum_max = None
 
-    def add_document(self, document):
+    def add_document(self, subject_id, document):
         if not document:
             return
         # each document is a list of dictionaries
         self.documents.append(document)
         self.doc_lengths.append(len(document))
+        self.subject_ids.append(subject_id)
 
     def _precalculate_doc_weights(self):
         self.doc_cumsum = np.cumsum(self.doc_lengths)
@@ -71,6 +73,7 @@ class DocumentDatabase:
     def merge(self, document_db):
         self.documents += document_db.documents
         self.doc_lengths += document_db.doc_lengths
+        self.subject_ids += document_db.subject_ids
         self._precalculate_doc_weights()
 
 
@@ -450,16 +453,16 @@ def prepare_docs(args, tokenizer, data):
         print('Records after dropping: %s' % len(df))
 
     docs = DocumentDatabase()
-    for idx, row in tqdm(data.iterrows()):
+    for _, row in tqdm(data.iterrows()):
         doc = []
         groups = getGroups(row)
-        for d, line in enumerate(row[args.col_name]):
+        for _, line in enumerate(row[args.col_name]):
             sample = {
                 'tokens': tokenizer.tokenize(line),
                 'groups': groups
             }
             doc.append(sample)
-        docs.add_document(doc)
+        docs.add_document(row.subject_id, doc)
     return docs
 
 

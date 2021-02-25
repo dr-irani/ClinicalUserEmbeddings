@@ -234,7 +234,7 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
     model.train()
     for epoch in range(args.epochs):
-        tmp_fp = f'/media/data_1/darius/data/epoch_{epoch}_dataset_255.pkl'
+        tmp_fp = f'/media/data_1/darius/data/512epoch_{epoch}_dataset_255.pkl'
         if Path(tmp_fp).is_file():
             logging.info(f'Loading dataset from {tmp_fp}...')
             with open(tmp_fp, 'rb') as f:
@@ -243,7 +243,7 @@ def main():
             epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
                                                 num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
             with open(tmp_fp, 'wb') as f:
-                pickle.dump(epoch_dataset, f)
+                pickle.dump(epoch_dataset, f, protocol=4)
         train_sampler = RandomSampler(epoch_dataset)
         train_dataloader = DataLoader(
             epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
