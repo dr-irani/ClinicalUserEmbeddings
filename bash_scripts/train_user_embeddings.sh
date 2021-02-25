@@ -8,6 +8,7 @@ cd "$BASE_DIR/scripts/"
 
 python train_user_embeddings.py \
 	--train_df "$OUTPUT_DIR/df_grouped.pkl" \
+	--downstream_dataset "inhosp_mort" \
 	--col_name "BERT_sents20" \
 	--output_dir "$OUTPUT_DIR/pregen_epochs/user/" \
 	--bert_model "$MODEL_DIR" \

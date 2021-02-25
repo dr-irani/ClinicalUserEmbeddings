@@ -14,6 +14,8 @@ import Constants
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
 
+DATA_DIR = '/media/data_1/darius/data/'
+
 
 def create_instances_from_document(
         doc_database, doc_idx, max_seq_length, short_seq_prob,
@@ -166,6 +168,8 @@ def get_args():
     parser.add_argument('--col_name', type=str, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--bert_model", type=str, required=True)
+    parser.add_argument('--downstream_dataset', type=str, default='',
+                        help='MIMIC task-specific dataset to filter which examples corresponding to matching subject_ids to maintain.')
     parser.add_argument("--do_whole_word_mask", action="store_true", default=True,
                         help="Whether to use whole word masking rather than per-WordPiece masking.")
     parser.add_argument("--epochs_to_generate", type=int, default=3,
@@ -194,13 +198,26 @@ def main():
     vocab_list = list(tokenizer.vocab.keys())
 
     prepare_docs_path = Path(
-        '/media/data_1/darius/data/prepared_user_docs.pkl')
+        DATA_DIR + f'prepared_docs_{args.downstream_dataset}.pkl')
 
     if not prepare_docs_path.is_file():
         logging.info('Loading grouped dataframe...')
         df = pd.read_pickle(args.train_df)
 
-        logging.info('Dataframe loaded. Preparing docs...')
+        logging.info(
+            f'Dataframe loaded with {len(df.subject_id.drop_duplicates())} subjects. Preparing docs...')
+
+        if args.downstream_dataset:
+            logging.info(
+                f'Filtering grouped dataframe to include only subjects in {args.downstream_dataset}...')
+            downstream_df = pd.read_pickle(
+                DATA_DIR + f'finetuning/{args.downstream_dataset}')
+
+            df = df[df.subject_id.isin(downstream_df.subject_id)].dropna()
+            del downstream_df
+            logging.info(
+                f'Filtering complete, dataframe contains {len(df.subject_id.drop_duplicates())} subjects.')
+
         docs = prepare_docs(args, tokenizer, df)
         del df
 
