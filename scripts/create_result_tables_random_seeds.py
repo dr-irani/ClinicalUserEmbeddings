@@ -94,12 +94,12 @@ def process_files():
     seeds = get_seeds(folder)
     dfs_list = []
     gap_infos_naive_list = []
-    for seed in seeds:
+    for seed in tqdm(seeds):
         dfs = {}
         gap_infos_naive = {}
         for sheet in sheets:
             res = pd.DataFrame()
-            for root, dirs, files in tqdm(os.walk(folder)):
+            for root, dirs, files in os.walk(folder):
                 for d in dirs:
                     mname = d
                     if f'_seed{seed}' not in mname:
